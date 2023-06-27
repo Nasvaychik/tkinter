@@ -95,8 +95,7 @@ class MainView:
     def __init__(self, root: tk.Tk = None):
         self.root = tk.Tk() if not root else root
         self.root.title("Матвеев К.Д")
-        self.root.geometry('1280x720')
-        self.root.configure(bg='grey')
+        self.root.geometry('800x400')
         self.init_ui()
 
     def build_tree(self):
@@ -125,12 +124,15 @@ class MainView:
     def to_add_view(self):
         AddProductView(on_destroy=None)
 
+
     def init_ui(self):
         self.tree = self.build_tree()
         self.tree.grid(row=0, column=0)
         self.tree.place(x=10, y=10)
 
         tk.Button(self.root, text='Добавить', command=self.to_add_view).place(x=10, y=250)
+        tk.Button(self.root, text='Обновить', command= lambda a=self: a.update_tree()).place(x=100, y=250)
+
 
     def mainloop(self):
         return self.root.mainloop()
