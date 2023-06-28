@@ -20,32 +20,46 @@ class Database:
         self.init_db()
 
     def init_db(self):
-        query = 'CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY AUTO_INCREMENT, first_name VARCHAR(100), last_name VARCHAR(100), surname VARCHAR(100))'
+        query = 'CREATE TABLE IF NOT EXISTS phone_numbers (id INT PRIMARY KEY AUTO_INCREMENT, full_name VARCHAR(100), phone_number VARCHAR(100))'
         self.cursor.execute(query, ())
         self.db.commit()
 
     def get_records(self):
-        query = 'SELECT * FROM users'
+        query = 'SELECT * FROM phone_numbers'
         self.cursor.execute(query, ())
         return self.cursor.fetchall()
 
-    def add_record(self, first_name, last_name, surname):
-        query = 'INSERT INTO users (first_name, last_name, surname) VALUES (%s, %s, %s)'
-        args = (first_name, last_name, surname)
+    def get_record(self, record_id):
+        query = 'SELECT * FROM phone_numbers WHERE id = %s'
+        args = (record_id,)
+        self.cursor.execute(query, args)
+        return self.cursor.fetchone()
+
+    def delete_record(self, record_id):
+        query = 'DELETE FROM phone_numbers WHERE id = %s'
+        args = (record_id,)
         self.cursor.execute(query, args)
         self.db.commit()
 
+    def add_record(self, full_name, phone_number):
+        query = 'INSERT INTO phone_numbers (full_name, phone_number) VALUES (%s, %s)'
+        args = (full_name, phone_number)
+        self.cursor.execute(query, args)
+        self.db.commit()
+
+        row_id = self.cursor.lastrowid
+        return self.get_record(row_id)
+
 
 class AddProductView(tk.Toplevel):
-    last_name_entry: tk.Entry
-    first_name_entry: tk.Entry
-    surname_entry: tk.Entry
+    full_name_entry: tk.Entry
+    phone_number_entry: tk.Entry
 
     database = Database()
 
-    def __init__(self, on_destroy, *args, **kwargs):
+    def __init__(self, master_root, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.on_destroy = on_destroy
+        self.master_root = master_root
         self.init_ui()
 
     def init_ui(self):
@@ -53,41 +67,30 @@ class AddProductView(tk.Toplevel):
         title_label.place(anchor='center')
         title_label.grid(row=0, column=0)
 
-        tk.Label(self, text='Фамилия: ').grid(row=1, column=0)
-        self.last_name_entry = tk.Entry(self)
-        self.last_name_entry.grid(row=1, column=1)
+        tk.Label(self, text='ФИО: ').grid(row=1, column=0)
+        self.full_name_entry = tk.Entry(self)
+        self.full_name_entry.grid(row=1, column=1)
 
-        tk.Label(self, text='Имя: ').grid(row=2, column=0)
-        self.first_name_entry = tk.Entry(self)
-        self.first_name_entry.grid(row=2, column=1)
-
-        tk.Label(self, text='Отчество: ').grid(row=3, column=0)
-        self.surname_entry = tk.Entry(self)
-        self.surname_entry.grid(row=3, column=1)
+        tk.Label(self, text='Номер: ').grid(row=2, column=0)
+        self.phone_number_entry = tk.Entry(self)
+        self.phone_number_entry.grid(row=2, column=1)
 
         tk.Button(self, text='Добавить', command=self.add_value).grid(row=4)
-
-    def destroy(self) -> None:
-        if self.on_destroy:
-            self.on_destroy()
-        super().destroy()
+        tk.Button(self, text='Закрыть', command=self.destroy).grid(row=4, column=1)
 
     def add_value(self):
-        first_name, last_name, surname = self.first_name_entry.get(), self.last_name_entry.get(), self.surname_entry.get()
-        self.database.add_record(first_name, last_name, surname)
+        phone_number, full_name = self.phone_number_entry.get(), self.full_name_entry.get()
+        new_record = self.database.add_record(full_name, phone_number)
+        self.master_root.tree.insert("", -1, values=tuple(new_record.values()))
         messagebox.showinfo('Успех', 'Данные в БД обновлены!')
         self.destroy()
 
 
-
 class MainView:
-    tree: ttk.Treeview
-
     tree_columns = dict(
         id='ID',
-        first_name='Имя',
-        last_name='Фамилия',
-        surname='Отчество'
+        full_name='ФИО',
+        phone_number='Номер'
     )
 
     database = Database()
@@ -96,6 +99,7 @@ class MainView:
         self.root = tk.Tk() if not root else root
         self.root.title("Матвеев К.Д")
         self.root.geometry('800x400')
+        self.tree = self.build_tree()
         self.init_ui()
 
     def build_tree(self):
@@ -111,7 +115,7 @@ class MainView:
         return tree
 
     def update_tree(self, tree: ttk.Treeview = None):
-        if not tree:
+        if tree is None:
             tree = self.tree
 
         for item in tree.get_children():
@@ -122,17 +126,27 @@ class MainView:
             tree.insert("", index, values=tuple(record.values()))
 
     def to_add_view(self):
-        AddProductView(on_destroy=None)
+        AddProductView(master_root=self)
 
+    def delete_from_focus(self):
+        focus = self.tree.focus()
+        item = self.tree.item(focus)
+
+        if not item:
+            return messagebox.showerror("Ошибка", "Выделите хотя бы один ряд для удаления!")
+
+        item_id = item['values'][0]
+        self.database.delete_record(item_id)
+        self.tree.delete(focus)
+
+        return messagebox.showinfo("Успех", "Запись удалена!")
 
     def init_ui(self):
-        self.tree = self.build_tree()
         self.tree.grid(row=0, column=0)
         self.tree.place(x=10, y=10)
 
         tk.Button(self.root, text='Добавить', command=self.to_add_view).place(x=10, y=250)
-        tk.Button(self.root, text='Обновить', command= lambda a=self: a.update_tree()).place(x=100, y=250)
-
+        tk.Button(self.root, text='Удалить', command=self.delete_from_focus).place(x=100, y=250)
 
     def mainloop(self):
         return self.root.mainloop()
